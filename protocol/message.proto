@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+option go_package = "wyndale/protocol/pb";
+option csharp_namespace = "Summer.proto";
+
+// 三维向量
+message Vector3 {
+	int64 x = 1;
+	int64 y = 2;
+	int64 z = 3;
+}
+
+// 实体信息
+message Entity {
+	int64 id = 1;
+	Vector3 position = 2;
+	Vector3 direction = 3;
+}
+
+// 实体状态
+enum EntityState {
+	NONE = 0;
+	IDLE = 1;
+	MOVE = 2;
+	JUMP = 3;
+}
+
+// 实体同步
+message EntitySync {
+	Entity entity = 1;
+	EntityState state = 2;
+}
+
+// 角色信息
+message Character{}
+
+// 用户注册：1
+message UserRegisterRequest{
+	string username = 1;
+	string password = 2;
+}
+message UserRegisterResponse{
+	int32 code = 1;
+	string message = 2;
+}
+
+// 用户登录：2
+message UserLoginRequest{
+	string username = 1;
+	string password = 2;
+}
+message UserLoginResponse{
+	bool success = 3;
+	int32 code = 1;
+	string message = 2;
+}
+
+// 进入游戏（玩家本人）：3
+message GameEnterRequest{
+	int32 character_id = 1;
+}
+message GameEnterResponse{
+	bool success = 1;
+	Entity entity = 2;
+	Character character = 3;
+}
+// 场景角色进入通知（其它玩家）
+message SpaceCharacterEnterNotify{
+	int64 space_id = 1;
+	repeated Entity entity_list = 2;
+}
+
+// 场景实体同步（玩家本人）
+message SpaceEntitySyncRequest{
+	EntitySync sync = 1;
+}
+message SpaceEntitySyncResponse{
+	EntitySync sync = 1;
+}
+// 场景实体同步通知（其它玩家）
+message SpaceEntitySyncNotify{
+	EntitySync sync = 1;
+}
+
+message SpaceEntityLeaveRequest{
+	int64 entity_id = 1;
+}
+message SpaceEntityLeaveResponse{}
+// 场景角色离开通知（其它玩家）
+message SpaceCharacterLeaveNotify{
+	int64 entity_id = 1;
+}

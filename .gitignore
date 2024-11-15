@@ -23,3 +23,11 @@ go.work.sum
 
 # env file
 .env
+
+*.log
+
+depends/consul
+depends/mysql
+depends/redis
+
+.idea

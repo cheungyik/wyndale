@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+option go_package = "wyndale/protocol/hall";
+
+package hall;
+
+message RegisterReq {
+  string account = 1; // 账号
+  string password = 2; // 密码
+  string nickname = 3; // 昵称
+}
+
+message RegisterRes {
+  int32 code = 1; // 错误码
+}
+
+message LoginReq {
+  string account = 1; // 账号
+  string password = 2; // 密码
+}
+
+message LoginRes {
+  int32 code = 1; // 错误码
+}
+
+message FetchProfileRes {
+  int32 code = 1; // 错误码
+  Profile data = 2; // 资料信息
+}
+
+message Profile {
+  int64 uid = 1; // 用户ID
+  string account = 2; // 账号
+  string nickname = 3; // 昵称
+}

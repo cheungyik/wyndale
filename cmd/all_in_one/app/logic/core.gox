@@ -1,0 +1,159 @@
+package logic
+
+import (
+	"github.com/dobyte/due/v2/cluster/node"
+	"github.com/dobyte/due/v2/codes"
+	"github.com/dobyte/due/v2/log"
+	"github.com/dobyte/due/v2/task"
+	"wyndale/cmd/hall/app/route"
+	"wyndale/internal/middleware"
+	"wyndale/internal/service/grpc/user"
+	"wyndale/internal/service/grpc/user/pb"
+	"wyndale/protocol/hall"
+)
+
+type Core struct {
+	proxy *node.Proxy
+}
+
+func NewCore(proxy *node.Proxy) *Core {
+	return &Core{
+		proxy: proxy,
+	}
+}
+
+func (c *Core) Init() {
+	c.proxy.Router().Group(func(group *node.RouterGroup) {
+		// 注册账号
+		group.AddRouteHandler(route.Register, false, c.register)
+		// 登录账号
+		group.AddRouteHandler(route.Login, false, c.login)
+		// 注册中间件
+		group.Middleware(middleware.Auth)
+		// 拉取信息
+		group.AddRouteHandler(route.FetchProfile, false, c.fetchProfile)
+	})
+}
+
+// 注册账号
+// 由于单个节点上的路由消息处理采用的单线程，如果要进行存在I/O操作，最好使用task.AddTask来进行处理
+func (c *Core) register(ctx node.Context) {
+	ctx = ctx.Clone()
+
+	task.AddTask(func() {
+		req := &hall.RegisterReq{}
+		res := &hall.RegisterRes{}
+		defer func() {
+			if err := ctx.Response(res); err != nil {
+				log.Errorf("response message failed: %v", err)
+			}
+		}()
+
+		if err := ctx.Parse(req); err != nil {
+			log.Errorf("parse request message failed: %v", err)
+			res.Code = int32(codes.InternalError.Code())
+			return
+		}
+
+		client, err := user.NewClient(c.proxy.NewMeshClient)
+		if err != nil {
+			log.Errorf("create mesh client failed: %v", err)
+			res.Code = int32(codes.InternalError.Code())
+			return
+		}
+
+		_, err = client.Register(ctx.Context(), &pb.RegisterRequest{
+			Account:  req.Account,
+			Password: req.Password,
+			Nickname: req.Nickname,
+		})
+		if err != nil {
+			res.Code = int32(codes.Convert(err).Code())
+			return
+		}
+
+		res.Code = int32(codes.OK.Code())
+	})
+}
+
+// 登录账号
+func (c *Core) login(ctx node.Context) {
+	ctx = ctx.Clone()
+
+	task.AddTask(func() {
+		req := &hall.LoginReq{}
+		res := &hall.LoginRes{}
+		defer func() {
+			if err := ctx.Response(res); err != nil {
+				log.Errorf("response message failed: %v", err)
+			}
+		}()
+
+		if err := ctx.Parse(req); err != nil {
+			log.Errorf("parse request message failed: %v", err)
+			res.Code = int32(codes.InternalError.Code())
+			return
+		}
+
+		client, err := user.NewClient(c.proxy.NewMeshClient)
+		if err != nil {
+			log.Errorf("create mesh client failed: %v", err)
+			res.Code = int32(codes.InternalError.Code())
+			return
+		}
+
+		reply, err := client.Login(ctx.Context(), &pb.LoginRequest{
+			Account:  req.Account,
+			Password: req.Password,
+		})
+		if err != nil {
+			res.Code = int32(codes.Convert(err).Code())
+			return
+		}
+
+		// 登录成功后，将网关连接与用户ID进行绑定，在后续通过该连接到达node节点的消息都会携带上此用户ID
+		if err = ctx.BindGate(reply.Uid); err != nil {
+			log.Errorf("bind gate failed: %v", err)
+			res.Code = int32(codes.InternalError.Code())
+			return
+		}
+
+		res.Code = int32(codes.OK.Code())
+	})
+}
+
+// 拉取信息
+func (c *Core) fetchProfile(ctx node.Context) {
+	ctx = ctx.Clone()
+
+	task.AddTask(func() {
+		res := &hall.FetchProfileRes{}
+		defer func() {
+			if err := ctx.Response(res); err != nil {
+				log.Errorf("response message failed: %v", err)
+			}
+		}()
+
+		client, err := user.NewClient(c.proxy.NewMeshClient)
+		if err != nil {
+			log.Errorf("create mesh client failed: %v", err)
+			res.Code = int32(codes.InternalError.Code())
+			return
+		}
+
+		reply, err := client.FetchProfile(ctx.Context(), &pb.FetchProfileRequest{
+			Uid: ctx.UID(),
+		})
+		if err != nil {
+			res.Code = int32(codes.Convert(err).Code())
+			return
+		}
+
+		res.Code = int32(codes.OK.Code())
+		res.Data = &hall.Profile{
+			Uid:      ctx.UID(),
+			Account:  reply.Account,
+			Nickname: reply.Nickname,
+		}
+	})
+}

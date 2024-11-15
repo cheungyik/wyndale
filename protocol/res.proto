@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+option go_package = "wyndale/protocol/common";
+
+package common;
+
+message Res {
+  int32 code = 1; // 错误码
+}
